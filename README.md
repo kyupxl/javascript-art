@@ -1,2 +1,1 @@
 # javascript-art
-javascript art
