@@ -2,15 +2,14 @@ const ejs = require('ejs')
 const glob = require('glob')
 const fs = require('fs')
 const browserify = require('browserify')()
-const docs_builder = require('./src/docs_builder')
 const shell = require('./grunt/shell').exec
 
 // Build inputs
-const INDEX_EJS = glob.sync('src/index*.ejs')
-const INDEX_JS = glob.sync('src/index*.js')
-const TEMPLATES_EJS = glob.sync('src/templates/*.ejs')
 const PAGES_JS = glob.sync('src/pages/**/*.js')
 const LIB_JS = glob.sync('src/lib/**/*.js')
+const PAGE_TEMPLATE_EJS = 'src/templates/page.html.ejs'
+const INDEX_EJS = 'src/index.html.ejs'
+const INDEX_JS = 'src/index.js'
 
 // Build outputs
 const OUTPUT_DIR = 'docs'
@@ -18,11 +17,11 @@ const OUTPUT_DIR = 'docs'
 function printInputs() {
   console.log(
     'Build Inputs:', '\n',
-    'index_ejs:', INDEX_EJS, '\n',
-    'index_js:', INDEX_JS, '\n',
-    'templates_ejs:', TEMPLATES_EJS, '\n',
-    'pages_js:', PAGES_JS, '\n',
-    'lib_js:', LIB_JS
+    INDEX_EJS, '\n',
+    INDEX_JS, '\n',
+    PAGE_TEMPLATE_EJS, '\n',
+    'pages:', PAGES_JS, '\n',
+    'lib:', LIB_JS
   )
 }
 
@@ -34,6 +33,7 @@ function browserifyJsP(inputJs, outputJs) {
       fs.writeFile(outputJs, buf, (err) => {
         if (err) reject(err)
         console.log('Browserified JS:', inputJs, '->', outputJs)
+        resolve(true)
       })
     })
   })
@@ -41,7 +41,7 @@ function browserifyJsP(inputJs, outputJs) {
 
 function ejsRenderP(inputEjs, outputHtml, data={}) {
   return new Promise((resolve, reject) => {
-    ejs.renderFile(inputEjs, {}, {}, function(err, str){
+    ejs.renderFile(inputEjs, data, {}, function(err, str){
       if (err) reject(err)
       fs.writeFile(outputHtml, str, (err) => {
         if (err) reject(err)
@@ -53,8 +53,8 @@ function ejsRenderP(inputEjs, outputHtml, data={}) {
 }
 
 function cleanOutputDir() {
-  shell(`mkdir -p ${OUTPUT_DIR}`)
-  shell(`rm -rf ${OUTPUT_DIR}/*`)
+  shell(`mkdir -p ${OUTPUT_DIR}`, { print: true })
+  shell(`rm -rf ${OUTPUT_DIR}/*`, { print: true })
   console.log('Cleaned:', OUTPUT_DIR)
 }
 
@@ -64,9 +64,31 @@ module.exports = function(grunt) {
     async function() {
       const done = this.async()
       printInputs()
+
+      // Clean up previous build
       cleanOutputDir()
-      await ejsRenderP(INDEX_EJS[0], `${OUTPUT_DIR}/index.html`)
-      await browserifyJsP(INDEX_JS[0], `${OUTPUT_DIR}/index.js`)
+
+      // Generate index.js and index.html
+      await ejsRenderP(INDEX_EJS, `${OUTPUT_DIR}/index.html`)
+      await browserifyJsP(INDEX_JS, `${OUTPUT_DIR}/index.js`)
+
+      // Generate a page for each page js present
+      shell(`mkdir -p ${OUTPUT_DIR}/pages`, { print: true })
+      await Promise.all(PAGES_JS.map((pageJs) => {
+        return new Promise(async (resolve) => {
+          let pageFileName = pageJs.split('/').pop()
+          let pageName = pageFileName.split('.')[0]
+          let pageData = {
+            pageFileName: pageFileName,
+            pageName: pageName,
+          }
+          await ejsRenderP(PAGE_TEMPLATE_EJS, `${OUTPUT_DIR}/pages/${pageName}.html`, pageData)
+          await browserifyJsP(pageJs, `${OUTPUT_DIR}/pages/${pageFileName}`)
+          console.log(`this page is called ${pageName}`)
+          resolve(true)
+        })
+      }))
+
       done()
   })
 
