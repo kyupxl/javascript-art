@@ -27,6 +27,7 @@ function printInputs() {
 
 function browserifyJsP(inputJs, outputJs) {
   return new Promise((resolve, reject) => {
+    browserify.reset()
     browserify.add(inputJs)
     browserify.bundle((err, buf) => {
       if (err) reject(err)
@@ -66,13 +67,16 @@ module.exports = function(grunt) {
       printInputs()
 
       // Clean up previous build
+      console.log('\nCLEANUP')
       cleanOutputDir()
 
       // Generate index.js and index.html
+      console.log('\nGENERATE INDEX PAGES')
       await ejsRenderP(INDEX_EJS, `${OUTPUT_DIR}/index.html`)
       await browserifyJsP(INDEX_JS, `${OUTPUT_DIR}/index.js`)
 
       // Generate a page for each page js present
+      console.log('\nGENERATE PAGES')
       shell(`mkdir -p ${OUTPUT_DIR}/pages`, { print: true })
       await Promise.all(PAGES_JS.map((pageJs) => {
         return new Promise(async (resolve) => {
@@ -84,7 +88,7 @@ module.exports = function(grunt) {
           }
           await ejsRenderP(PAGE_TEMPLATE_EJS, `${OUTPUT_DIR}/pages/${pageName}.html`, pageData)
           await browserifyJsP(pageJs, `${OUTPUT_DIR}/pages/${pageFileName}`)
-          console.log(`this page is called ${pageName}`)
+          console.log(`Generated Page: ${pageName}`)
           resolve(true)
         })
       }))
