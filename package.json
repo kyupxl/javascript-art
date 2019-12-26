@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "dependencies": {
     "ejs": "^3.0.1",
-    "glob": "latest"
+    "glob": "latest",
+    "browserify": "latest"
   }
 }
