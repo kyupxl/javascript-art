@@ -2,7 +2,10 @@ const ejs = require('ejs')
 const glob = require('glob')
 const fs = require('fs')
 const browserify = require('browserify')()
+
+// Grunt helpers
 const shell = require('./grunt/shell').exec
+const version = require('./grunt/version')('./package.json')
 
 // Build inputs
 const PAGES_JS = glob.sync('src/pages/**/*.js')
@@ -59,11 +62,17 @@ function cleanOutputDir() {
   console.log('Cleaned:', OUTPUT_DIR)
 }
 
+function prettyVersionString() {
+  return version.getPackageName() + ' v' + version.getString()
+}
+
 module.exports = function(grunt) {
 
   grunt.registerTask('build', 'render each ejs template and build website in docs',
     async function() {
       const done = this.async()
+      version.incrementRevision()
+      console.log(prettyVersionString())
       printInputs()
 
       // Clean up previous build
@@ -75,7 +84,9 @@ module.exports = function(grunt) {
       await ejsRenderP(INDEX_EJS, `${OUTPUT_DIR}/index.html`)
       await browserifyJsP(INDEX_JS, `${OUTPUT_DIR}/index.js`)
 
-      // Generate a page for each page js present
+      // TODO: create src/assets and copy to docs/assets for static assets like images
+
+      // Generate a page for each js file in pages
       console.log('\nGENERATE PAGES')
       shell(`mkdir -p ${OUTPUT_DIR}/pages`, { print: true })
       await Promise.all(PAGES_JS.map((pageJs) => {
@@ -94,6 +105,11 @@ module.exports = function(grunt) {
       }))
 
       done()
+  })
+
+  grunt.registerTask('masterPreCommit', 'trigger this before commit to master', function() {
+    version.incrementMinorVersion()
+    console.log(prettyVersionString())
   })
 
 }
